@@ -1,5 +1,5 @@
 /* 앱 셸 캐시 — 시세 데이터(API/WS)는 캐시하지 않음 */
-const CACHE = 'btcxrp-v1';
+const CACHE = 'btcxrpeth-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

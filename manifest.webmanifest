@@ -1,7 +1,7 @@
 {
-  "name": "BTC/XRP 스프레드 모니터",
-  "short_name": "BTC/XRP",
-  "description": "BTC/XRP 비율 통계 분석 및 전환 타이밍 모니터",
+  "name": "BTC/XRP/ETH 스프레드 모니터",
+  "short_name": "BTC/XRP/ETH",
+  "description": "BTC·XRP·ETH 비율 통계 분석 및 전환 타이밍 모니터",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

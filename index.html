@@ -10,14 +10,14 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<title>BTC/XRP 스프레드</title>
+<title>BTC/XRP/ETH 스프레드</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#12141A; --surface:#181B22; --surface2:#1E222B;
     --border:#272C36; --border-soft:#1F232C;
     --text:#EDEFF2; --dim:#8A90A0; --faint:#585F6E;
-    --btc:#E8A33D; --xrp:#3EA6C4; --signal:#E8735F; --good:#6FBF7C; --warn:#D8B24A;
+    --btc:#E8A33D; --xrp:#3EA6C4; --eth:#8C8FF0; --signal:#E8735F; --good:#6FBF7C; --warn:#D8B24A;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--bg);color:var(--text);
@@ -37,6 +37,8 @@
   .tabs button{flex:1;border:0;background:transparent;color:var(--dim);font-size:13px;
     padding:8px 0;border-radius:7px;cursor:pointer}
   .tabs button.active{background:var(--surface2);color:var(--text);font-weight:600}
+  .tabs.pair-tabs{margin:0 0 12px}
+  .tabs.pair-tabs button{font-size:12px;padding:7px 0}
   .range-panel{background:var(--surface);border:1px solid var(--border-soft);border-radius:10px;
     padding:10px 12px;margin-bottom:12px}
   .range-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
@@ -48,12 +50,12 @@
     border-radius:7px;padding:7px 12px;cursor:pointer}
   .range-row button.ghost{background:transparent;border:1px solid var(--border-soft);color:var(--dim)}
   .range-hint{font-size:10px;color:var(--faint);margin-top:6px}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-  .card{background:var(--surface);border:1px solid var(--border-soft);border-radius:10px;padding:12px}
-  .card.btc{border-left:3px solid var(--btc)} .card.xrp{border-left:3px solid var(--xrp)}
-  .card .lbl{font-size:11px;color:var(--dim);margin-bottom:3px}
-  .card .price{font-size:17px;font-weight:500}
-  .card .chg{font-size:11px;margin-top:3px}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .card{background:var(--surface);border:1px solid var(--border-soft);border-radius:10px;padding:10px}
+  .card.btc{border-left:3px solid var(--btc)} .card.xrp{border-left:3px solid var(--xrp)} .card.eth{border-left:3px solid var(--eth)}
+  .card .lbl{font-size:10px;color:var(--dim);margin-bottom:3px}
+  .card .price{font-size:14px;font-weight:500}
+  .card .chg{font-size:10px;margin-top:3px}
   .up{color:var(--good)} .down{color:var(--signal)}
   .panel{background:var(--surface);border:1px solid var(--border-soft);border-radius:10px;
     padding:14px;margin-bottom:12px}
@@ -65,8 +67,6 @@
     display:flex;align-items:center;gap:10px;border:1px solid var(--border)}
   .verdict .arrow{font-size:18px}
   .verdict.neutral{background:var(--surface2);color:var(--dim)}
-  .verdict.to-xrp{background:rgba(232,163,61,.10);border-color:rgba(232,163,61,.4);color:var(--btc)}
-  .verdict.to-btc{background:rgba(62,166,196,.10);border-color:rgba(62,166,196,.4);color:var(--xrp)}
   .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
   .metric{background:var(--surface2);border-radius:8px;padding:9px;text-align:center}
   .metric .k{font-size:10px;color:var(--faint);margin-bottom:3px}
@@ -99,7 +99,7 @@
 <div class="wrap">
   <header>
     <div class="eyebrow mono">BINANCE · 실시간</div>
-    <h1>BTC / XRP 스프레드 모니터<span class="live-dot" id="liveDot"></span></h1>
+    <h1>BTC / XRP / ETH 스프레드 모니터<span class="live-dot" id="liveDot"></span></h1>
     <div class="mode" id="modeText"></div>
   </header>
 
@@ -118,18 +118,9 @@
   <div class="loading" id="loading">과거 데이터 불러오는 중…</div>
 
   <div id="app" style="display:none">
-    <div class="cards">
-      <div class="card btc">
-        <div class="lbl">BTC / USDT</div>
-        <div class="price mono" id="btcPrice">-</div>
-        <div class="chg mono" id="btcChg">-</div>
-      </div>
-      <div class="card xrp">
-        <div class="lbl">XRP / USDT</div>
-        <div class="price mono" id="xrpPrice">-</div>
-        <div class="chg mono" id="xrpChg">-</div>
-      </div>
-    </div>
+    <div class="cards" id="cards"></div>
+
+    <div class="tabs pair-tabs" id="pairTabs"></div>
 
     <div class="panel">
       <h2>전환 타이밍 분석 <span class="sub" id="tfLabel"></span></h2>
@@ -143,19 +134,19 @@
     </div>
 
     <div class="panel">
-      <h2>BTC/XRP 비율 <span class="sub mono" id="ratioNow">-</span></h2>
-      <div class="gauge-lbls"><span>XRP 상대 강세</span><span>BTC 상대 강세</span></div>
+      <h2 id="ratioTitle">비율 <span class="sub mono" id="ratioNow">-</span></h2>
+      <div class="gauge-lbls"><span id="gaugeLeftLbl">-</span><span id="gaugeRightLbl">-</span></div>
       <div class="gauge-track"><div class="gauge-pin" id="gaugePin" style="left:50%"></div></div>
       <div class="gauge-lbls"><span class="mono" id="gMin">-</span><span class="mono" id="gMax">-</span></div>
     </div>
 
     <div class="panel">
-      <h2>기간 수익률 비교 <span class="sub"><span style="color:var(--btc)">● BTC</span>&nbsp;<span style="color:var(--xrp)">● XRP</span></span></h2>
+      <h2>기간 수익률 비교 <span class="sub" id="pctLegend"></span></h2>
       <div class="chartbox"><canvas id="pctChart"></canvas></div>
     </div>
 
     <div class="panel">
-      <h2>비율 추이</h2>
+      <h2 id="ratioChartTitle">비율 추이</h2>
       <div class="chartbox sm"><canvas id="ratioChart"></canvas></div>
     </div>
 
@@ -168,7 +159,8 @@
 
     <div class="footer">
       실시간 시세: Binance WebSocket (연결 불가 시 5초 폴링 자동 전환) · 과거 데이터: Binance 공개 API<br>
-      본 지표는 선택한 기간의 통계적 위치를 보여주는 참고 도구입니다. BTC/XRP 비율은 평균 회귀가 보장되지 않으며, 전환 시 수수료·슬리피지·세금이 발생합니다. 투자 조언이 아닙니다.
+      본 지표는 선택한 기간의 통계적 위치를 보여주는 참고 도구입니다. 비율은 평균 회귀가 보장되지 않으며, 전환 시 수수료·슬리피지·세금이 발생합니다. 투자 조언이 아닙니다.<br>
+      v1.1.0
     </div>
   </div>
 </div>
@@ -191,16 +183,26 @@ const TF = [
   {key:'monthly',label:'월별', interval:'1M', limit:60},
   {key:'yearly', label:'년간', interval:'1M', limit:96, yearly:true},
 ];
+/* 자산 구성: BTC / XRP / ETH */
+const ASSETS = {
+  btc:{symbol:'BTCUSDT', stream:'btcusdt', label:'BTC / USDT', short:'BTC', color:'#E8A33D', decimals:2},
+  xrp:{symbol:'XRPUSDT', stream:'xrpusdt', label:'XRP / USDT', short:'XRP', color:'#3EA6C4', decimals:4},
+  eth:{symbol:'ETHUSDT', stream:'ethusdt', label:'ETH / USDT', short:'ETH', color:'#8C8FF0', decimals:2},
+};
+const ASSET_KEYS = ['btc','xrp','eth'];
+const PAIRS = [['btc','xrp'],['btc','eth'],['xrp','eth']];
 let tf = TF[0];
+let pair = PAIRS[0]; // [assetA, assetB] — 비율 = A/B
 let customRange = null; // {start:Date, end:Date} or null = 최근 N개 구간(기본값)
-let hist = null;
-let live = {btc:null, xrp:null};
+let hist = null; // {labels, btc:[], xrp:[], eth:[]}
+let live = {btc:null, xrp:null, eth:null};
 let pctChart=null, ratioChart=null;
 let ws=null, wsHostIdx=0, wsFailCount=0, wsTimer=null, pollTimer=null;
 let restHost=null, demoMode=false, demoTimer=null;
 
 const $ = id => document.getElementById(id);
 const fmt = (v,d=2)=> v==null?'-':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const hexToRgba = (hex,a)=>{const n=parseInt(hex.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;};
 
 /* 전역 에러를 화면에 표시 (모바일 디버깅용) */
 window.addEventListener('error', e=>{
@@ -211,15 +213,34 @@ window.addEventListener('error', e=>{
   }
 });
 
-/* ============ 탭 ============ */
+/* ============ 시세 카드 (BTC/XRP/ETH) ============ */
+ASSET_KEYS.forEach(k=>{
+  const a=ASSETS[k];
+  const card=document.createElement('div');
+  card.className='card '+k;
+  card.innerHTML=`<div class="lbl">${a.label}</div><div class="price mono" id="price_${k}">-</div><div class="chg mono" id="chg_${k}">-</div>`;
+  $('cards').appendChild(card);
+});
+
+/* ============ 기간(TF) 탭 ============ */
 TF.forEach(t=>{
   const b=document.createElement('button');
   b.textContent=t.label;
-  b.onclick=()=>{tf=t;document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  b.onclick=()=>{tf=t;document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
     customRange=null; syncRangeInputs();
     demoMode? loadDemo() : loadHistory();};
   if(t.key===tf.key)b.classList.add('active');
   $('tabs').appendChild(b);
+});
+
+/* ============ 비교 쌍(PAIR) 탭 — BTC/XRP, BTC/ETH, XRP/ETH ============ */
+PAIRS.forEach(p=>{
+  const b=document.createElement('button');
+  b.textContent=`${ASSETS[p[0]].short}/${ASSETS[p[1]].short}`;
+  b.onclick=()=>{pair=p;document.querySelectorAll('#pairTabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+    if(hist){buildRatio();drawCharts();render();}};
+  if(p===pair)b.classList.add('active');
+  $('pairTabs').appendChild(b);
 });
 
 /* ============ 기간 직접 지정 (일별/주별/월별/년간 공통) ============ */
@@ -295,9 +316,9 @@ function lbl(ts){const d=new Date(ts);
 async function loadHistory(){
   $('loading').style.display='block';$('app').style.display='none';$('warnBox').style.display='none';
   try{
-    let[b,x]=await Promise.all([klines('BTCUSDT'),klines('XRPUSDT')]);
-    if(tf.yearly){b=yearAgg(b);x=yearAgg(x);}
-    buildHist(b,x);
+    let[b,x,e]=await Promise.all(ASSET_KEYS.map(k=>klines(ASSETS[k].symbol)));
+    if(tf.yearly){b=yearAgg(b);x=yearAgg(x);e=yearAgg(e);}
+    buildHist(b,x,e);
     $('loading').style.display='none';$('app').style.display='block';
     startLive();
   }catch(e){
@@ -311,13 +332,20 @@ async function loadHistory(){
       <button onclick="loadDemo()">데모 데이터로 UI 확인</button>`;
   }
 }
-function buildHist(b,x){
-  const n=Math.min(b.length,x.length);
-  hist={labels:[],btc:[],xrp:[],ratio:[]};
-  for(let i=0;i<n;i++){hist.labels.push(lbl(b[i].t));hist.btc.push(b[i].c);hist.xrp.push(x[i].c);hist.ratio.push(b[i].c/x[i].c);}
+function buildHist(b,x,e){
+  const n=Math.min(b.length,x.length,e.length);
+  hist={labels:[],btc:[],xrp:[],eth:[]};
+  for(let i=0;i<n;i++){hist.labels.push(lbl(b[i].t));hist.btc.push(b[i].c);hist.xrp.push(x[i].c);hist.eth.push(e[i].c);}
+  buildRatio();
   const rangeNote = customRange ? ` (${isoDate(customRange.start)}~${isoDate(customRange.end)})` : '';
   $('tfLabel').textContent=`기준: ${tf.label} ${n}개 구간${rangeNote}`+(demoMode?' · 데모':'');
   drawCharts();render();
+}
+/* 선택된 비교 쌍(pair) 기준 비율 시계열 계산: ratio = A/B */
+function buildRatio(){
+  if(!hist)return;
+  const [a,b]=pair;
+  hist.ratio=hist[a].map((v,i)=>v/hist[b][i]);
 }
 
 /* ============ 데모 모드 (UI 확인용) ============ */
@@ -331,21 +359,23 @@ function loadDemo(){
   const n=customRange
     ? Math.max(2,Math.min(1000,Math.round((customRange.end-customRange.start)/step)))
     : (tf.yearly?8:Math.min(tf.limit,90));
-  let bp=60000+Math.random()*20000, xp=1.8+Math.random()*1.2;
-  const b=[],x=[];
+  let bp=60000+Math.random()*20000, xp=1.8+Math.random()*1.2, ep=2500+Math.random()*800;
+  const b=[],x=[],e=[];
   for(let i=n-1;i>=0;i--){
     bp*=1+(Math.random()-0.48)*0.05;
     xp*=1+(Math.random()-0.48)*0.07;
-    b.push({t:now-i*step,c:bp});x.push({t:now-i*step,c:xp});
+    ep*=1+(Math.random()-0.48)*0.06;
+    b.push({t:now-i*step,c:bp});x.push({t:now-i*step,c:xp});e.push({t:now-i*step,c:ep});
   }
-  live.btc=bp;live.xrp=xp;
-  buildHist(b,x);
+  live.btc=bp;live.xrp=xp;live.eth=ep;
+  buildHist(b,x,e);
   $('loading').style.display='none';$('app').style.display='block';
   $('modeText').textContent='데모 모드';
   clearInterval(demoTimer);
   demoTimer=setInterval(()=>{ // 실시간 틱 흉내
     live.btc*=1+(Math.random()-0.5)*0.001;
     live.xrp*=1+(Math.random()-0.5)*0.0015;
+    live.eth*=1+(Math.random()-0.5)*0.0012;
     render();
   },1500);
 }
@@ -366,8 +396,9 @@ function connectWS(){
   try{ws&&ws.close();}catch(e){}
   clearTimeout(wsTimer);
   const host=WS_HOSTS[wsHostIdx%WS_HOSTS.length];
+  const streams=ASSET_KEYS.map(k=>ASSETS[k].stream+'@miniTicker').join('/');
   try{
-    ws=new WebSocket(host+'/stream?streams=btcusdt@miniTicker/xrpusdt@miniTicker');
+    ws=new WebSocket(host+'/stream?streams='+streams);
   }catch(e){ wsFail(); return; }
   const openTimeout=setTimeout(()=>{try{ws.close();}catch(e){}},6000);
   ws.onopen=()=>{
@@ -381,7 +412,8 @@ function connectWS(){
     try{
       const m=JSON.parse(ev.data);
       const p=parseFloat(m.data.c);
-      if(m.stream.startsWith('btcusdt'))live.btc=p; else live.xrp=p;
+      const k=ASSET_KEYS.find(k=>m.stream.startsWith(ASSETS[k].stream));
+      if(k)live[k]=p;
       render();
     }catch(e){}
   };
@@ -401,12 +433,13 @@ function wsFail(){
 function startPolling(){
   $('liveDot').className='live-dot poll';
   $('modeText').textContent='5초 간격 폴링 모드 (스트리밍 불가 환경)';
+  const symbolsParam=encodeURIComponent(JSON.stringify(ASSET_KEYS.map(k=>ASSETS[k].symbol)));
   const poll=async()=>{
     try{
-      const d=await apiGet('/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22,%22XRPUSDT%22%5D');
+      const d=await apiGet(`/api/v3/ticker/price?symbols=${symbolsParam}`);
       d.forEach(t=>{
-        if(t.symbol==='BTCUSDT')live.btc=parseFloat(t.price);
-        if(t.symbol==='XRPUSDT')live.xrp=parseFloat(t.price);
+        const k=ASSET_KEYS.find(k=>ASSETS[k].symbol===t.symbol);
+        if(k)live[k]=parseFloat(t.price);
       });
       render();
     }catch(e){}
@@ -433,10 +466,11 @@ function rsi(arr,period=14){
 }
 function analyze(){
   if(!hist)return null;
-  const curRatio=(live.btc&&live.xrp)?live.btc/live.xrp:hist.ratio[hist.ratio.length-1];
+  const [a,b]=pair;
+  const curRatio=(live[a]&&live[b])?live[a]/live[b]:hist.ratio[hist.ratio.length-1];
   const r=hist.ratio;
-  const mean=r.reduce((a,b)=>a+b,0)/r.length;
-  const sd=Math.sqrt(r.reduce((a,b)=>a+(b-mean)**2,0)/r.length)||1;
+  const mean=r.reduce((x,y)=>x+y,0)/r.length;
+  const sd=Math.sqrt(r.reduce((x,y)=>x+(y-mean)**2,0)/r.length)||1;
   const z=(curRatio-mean)/sd;
   const pct=r.filter(v=>v<=curRatio).length/r.length*100;
   const rr=rsi([...r,curRatio]);
@@ -447,26 +481,31 @@ function analyze(){
   if(pct>=85)s+=1;else if(pct<=15)s-=1;
   if(rr!=null){if(rr>=70)s+=1;else if(rr<=30)s-=1;}
   const q=Math.max(3,Math.floor(r.length/4));
-  const recent=r.slice(-q).reduce((a,b)=>a+b,0)/q;
+  const recent=r.slice(-q).reduce((x,y)=>x+y,0)/q;
   return{curRatio,z,pct,rr,s,min,max,trendUp:recent>mean*1.02,trendDown:recent<mean*0.98};
 }
 
 /* ============ 렌더 ============ */
 function render(){
   if(!hist)return;
-  const bBase=hist.btc[0],xBase=hist.xrp[0];
-  const b=live.btc??hist.btc[hist.btc.length-1];
-  const x=live.xrp??hist.xrp[hist.xrp.length-1];
-  $('btcPrice').textContent='$'+fmt(b,2);
-  $('xrpPrice').textContent='$'+fmt(x,4);
-  const bc=(b/bBase-1)*100,xc=(x/xBase-1)*100;
-  $('btcChg').textContent=(bc>=0?'+':'')+bc.toFixed(2)+'% (기간 내)';
-  $('btcChg').className='chg mono '+(bc>=0?'up':'down');
-  $('xrpChg').textContent=(xc>=0?'+':'')+xc.toFixed(2)+'% (기간 내)';
-  $('xrpChg').className='chg mono '+(xc>=0?'up':'down');
+  ASSET_KEYS.forEach(k=>{
+    const a=ASSETS[k];
+    const base=hist[k][0];
+    const v=live[k]??hist[k][hist[k].length-1];
+    $('price_'+k).textContent='$'+fmt(v,a.decimals);
+    const c=(v/base-1)*100;
+    const el=$('chg_'+k);
+    el.textContent=(c>=0?'+':'')+c.toFixed(2)+'% (기간 내)';
+    el.className='chg mono '+(c>=0?'up':'down');
+  });
 
   const a=analyze();if(!a)return;
-  $('ratioNow').textContent=`1 BTC = ${fmt(a.curRatio,0)} XRP`;
+  const [pa,pb]=pair, aInfo=ASSETS[pa], bInfo=ASSETS[pb];
+  $('ratioTitle').innerHTML=`${aInfo.short}/${bInfo.short} 비율 <span class="sub mono" id="ratioNow"></span>`;
+  $('ratioNow').textContent=`1 ${aInfo.short} = ${fmt(a.curRatio,pb==='xrp'?0:2)} ${bInfo.short}`;
+  $('gaugeLeftLbl').textContent=`${bInfo.short} 상대 강세`;
+  $('gaugeRightLbl').textContent=`${aInfo.short} 상대 강세`;
+  $('ratioChartTitle').textContent=`${aInfo.short}/${bInfo.short} 비율 추이`;
   $('gMin').textContent=fmt(a.min,0);$('gMax').textContent=fmt(a.max,0);
   const gp=a.max>a.min?((a.curRatio-a.min)/(a.max-a.min))*100:50;
   $('gaugePin').style.left=Math.min(100,Math.max(0,gp))+'%';
@@ -479,16 +518,22 @@ function render(){
   $('mRt').textContent=a.rr==null?'데이터 부족':a.rr>=70?'과열':a.rr<=30?'침체':'중립';
 
   const v=$('verdict'),vt=$('verdictText'),ar=v.querySelector('.arrow');
-  if(a.s>=3){v.className='verdict to-xrp';ar.textContent='→';
-    vt.textContent='통계적으로 BTC 상대 고평가 (강) — BTC → XRP 전환 검토 구간';}
-  else if(a.s===2){v.className='verdict to-xrp';ar.textContent='→';
-    vt.textContent='BTC 상대 고평가 경향 (약) — BTC → XRP 전환 관심 구간';}
-  else if(a.s<=-3){v.className='verdict to-btc';ar.textContent='←';
-    vt.textContent='통계적으로 XRP 상대 고평가 (강) — XRP → BTC 전환 검토 구간';}
-  else if(a.s===-2){v.className='verdict to-btc';ar.textContent='←';
-    vt.textContent='XRP 상대 고평가 경향 (약) — XRP → BTC 전환 관심 구간';}
-  else{v.className='verdict neutral';ar.textContent='–';
-    vt.textContent='중립 — 뚜렷한 통계적 우위 없음, 관망';}
+  if(a.s>=2){ // pa 상대 고평가 → pa → pb 전환
+    v.className='verdict';
+    v.style.background=hexToRgba(aInfo.color,.10);v.style.borderColor=hexToRgba(aInfo.color,.4);v.style.color=aInfo.color;
+    ar.textContent='→';
+    vt.textContent=`통계적으로 ${aInfo.short} 상대 고평가 ${a.s>=3?'(강)':'(약)'} — ${aInfo.short} → ${bInfo.short} 전환 ${a.s>=3?'검토':'관심'} 구간`;
+  }else if(a.s<=-2){ // pb 상대 고평가 → pb → pa 전환
+    v.className='verdict';
+    v.style.background=hexToRgba(bInfo.color,.10);v.style.borderColor=hexToRgba(bInfo.color,.4);v.style.color=bInfo.color;
+    ar.textContent='←';
+    vt.textContent=`통계적으로 ${bInfo.short} 상대 고평가 ${a.s<=-3?'(강)':'(약)'} — ${bInfo.short} → ${aInfo.short} 전환 ${a.s<=-3?'검토':'관심'} 구간`;
+  }else{
+    v.className='verdict neutral';
+    v.style.background='';v.style.borderColor='';v.style.color='';
+    ar.textContent='–';
+    vt.textContent='중립 — 뚜렷한 통계적 우위 없음, 관망';
+  }
 
   const reasons=[`현재 비율은 ${tf.label} 기준 평균 대비 Z-score ${(a.z>=0?'+':'')}${a.z.toFixed(2)}, 퍼센타일 ${a.pct.toFixed(0)}% 위치`];
   if(a.trendUp)reasons.push('⚠ 비율이 최근 상승 추세 — 평균 회귀에 역행할 수 있어 신호 신뢰도 하락');
@@ -505,13 +550,15 @@ function drawCharts(){
     return;
   }
   const grid={color:'#1F232C'},ticks={color:'#585F6E',font:{size:10},maxTicksLimit:6};
-  const bPct=hist.btc.map(v=>(v/hist.btc[0]-1)*100);
-  const xPct=hist.xrp.map(v=>(v/hist.xrp[0]-1)*100);
   pctChart&&pctChart.destroy();ratioChart&&ratioChart.destroy();
+
+  $('pctLegend').innerHTML=ASSET_KEYS.map(k=>`<span style="color:${ASSETS[k].color}">● ${ASSETS[k].short}</span>`).join('&nbsp;');
+  const datasets=ASSET_KEYS.map(k=>{
+    const pctSeries=hist[k].map(v=>(v/hist[k][0]-1)*100);
+    return {data:pctSeries,borderColor:ASSETS[k].color,borderWidth:2,pointRadius:0,tension:.25,label:ASSETS[k].short};
+  });
   pctChart=new Chart($('pctChart'),{type:'line',
-    data:{labels:hist.labels,datasets:[
-      {data:bPct,borderColor:'#E8A33D',borderWidth:2,pointRadius:0,tension:.25,label:'BTC'},
-      {data:xPct,borderColor:'#3EA6C4',borderWidth:2,pointRadius:0,tension:.25,label:'XRP'}]},
+    data:{labels:hist.labels,datasets},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(2)}%`}}},
       scales:{x:{grid:{display:false},ticks},y:{grid,ticks:{...ticks,callback:v=>v+'%'}}}}});
